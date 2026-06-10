@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FlaskConical, Upload, Loader2, CheckCircle2, AlertTriangle, Database, ImageIcon, Sparkles, Trash2 } from "lucide-react";
+import { FlaskConical, Upload, Loader2, CheckCircle2, AlertTriangle, Database, ImageIcon, Sparkles, Trash2, Pencil, X, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { scanLabel, type ScannedFields } from "@/lib/labels.functions";
