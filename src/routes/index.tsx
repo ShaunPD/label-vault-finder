@@ -293,7 +293,7 @@ function LabelVault() {
                 <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 flex gap-3 items-start">
                   <AlertTriangle className="size-4 text-warning mt-0.5 shrink-0" />
                   <div className="text-sm">
-                    <p className="font-medium text-warning">Already in the database</p>
+                    <p className="font-medium text-warning">Matches a record in the database</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       Matched on Brand + Class/Type · added{" "}
                       {new Date(duplicate.created_at).toLocaleDateString()}
