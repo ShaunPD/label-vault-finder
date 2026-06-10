@@ -362,24 +362,46 @@ function LabelVault() {
                 />
               </div>
 
-              <Button
-                onClick={handleSave}
-                disabled={saving || !!duplicate}
-                className="w-full"
-                size="lg"
-              >
-                {saving ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" /> Saving…
-                  </>
-                ) : duplicate ? (
-                  "Already on file"
-                ) : (
-                  <>
-                    <Database className="size-4" /> Save to LabelVault
-                  </>
-                )}
-              </Button>
+              {duplicate && diffFields(fields, duplicate).length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    This label matches an existing record on Brand + Class/Type, but does not meet
+                    acceptance criteria. Reject this import to discard it.
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={reset}
+                      className="w-full"
+                      size="lg"
+                    >
+                      <Trash2 className="size-4" /> Reject import
+                    </Button>
+                    <Button disabled className="w-full" size="lg">
+                      Cannot save
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  onClick={handleSave}
+                  disabled={saving || !!duplicate}
+                  className="w-full"
+                  size="lg"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" /> Saving…
+                    </>
+                  ) : duplicate ? (
+                    "Already on file — meets acceptance criteria"
+                  ) : (
+                    <>
+                      <Database className="size-4" /> Save to LabelVault
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
           )}
         </section>
