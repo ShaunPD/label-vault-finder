@@ -493,3 +493,149 @@ function Field({
     </div>
   );
 }
+
+function RecordDialog({
+  record,
+  onClose,
+  onSaved,
+}: {
+  record: LabelRow | null;
+  onClose: () => void;
+  onSaved: (updated: LabelRow) => void | Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState<LabelRow | null>(null);
+
+  useEffect(() => {
+    setEditing(false);
+    setDraft(record);
+  }, [record]);
+
+  if (!record || !draft) return null;
+
+  const update = (k: keyof LabelRow, v: string) =>
+    setDraft((d) => (d ? { ...d, [k]: v } : d));
+
+  const handleSave = async () => {
+    if (!draft.brand_name.trim() || !draft.class_type.trim()) {
+      toast.error("Brand Name and Class / Type are required");
+      return;
+    }
+    setSaving(true);
+    try {
+      const { data, error } = await supabase
+        .from("labels")
+        .update({
+          brand_name: draft.brand_name.trim(),
+          class_type: draft.class_type.trim(),
+          alcohol_content: draft.alcohol_content?.trim() || null,
+          net_contents: draft.net_contents?.trim() || null,
+          government_warning: draft.government_warning?.trim() || null,
+        })
+        .eq("id", draft.id)
+        .select()
+        .single();
+      if (error) throw error;
+      await onSaved(data as LabelRow);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Update failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={!!record} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="truncate">{record.brand_name}</DialogTitle>
+          <DialogDescription>
+            Added {new Date(record.created_at).toLocaleString()}
+          </DialogDescription>
+        </DialogHeader>
+
+        {record.image_url && (
+          <div className="rounded-lg overflow-hidden border border-border bg-black/30">
+            <img
+              src={record.image_url}
+              alt={`${record.brand_name} label`}
+              className="w-full max-h-[320px] object-contain"
+            />
+          </div>
+        )}
+
+        <div className="space-y-4">
+          <Field
+            label="Brand Name"
+            value={draft.brand_name}
+            onChange={(v) => update("brand_name", v)}
+            readOnly={!editing}
+          />
+          <Field
+            label="Class / Type"
+            value={draft.class_type}
+            onChange={(v) => update("class_type", v)}
+            readOnly={!editing}
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <Field
+              label="Alcohol Content"
+              value={draft.alcohol_content ?? ""}
+              onChange={(v) => update("alcohol_content", v)}
+              readOnly={!editing}
+            />
+            <Field
+              label="Net Contents"
+              value={draft.net_contents ?? ""}
+              onChange={(v) => update("net_contents", v)}
+              readOnly={!editing}
+            />
+          </div>
+          <div>
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+              Government Warning
+            </Label>
+            <Textarea
+              rows={4}
+              className="mt-1.5 font-mono text-xs"
+              value={draft.government_warning ?? ""}
+              onChange={(e) => update("government_warning", e.target.value)}
+              readOnly={!editing}
+            />
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2 sm:gap-2">
+          {editing ? (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setDraft(record);
+                  setEditing(false);
+                }}
+                disabled={saving}
+              >
+                <X className="size-4" /> Cancel
+              </Button>
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                Save changes
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outline" onClick={onClose}>
+                Close
+              </Button>
+              <Button onClick={() => setEditing(true)}>
+                <Pencil className="size-4" /> Edit
+              </Button>
+            </>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
