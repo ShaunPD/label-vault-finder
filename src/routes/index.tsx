@@ -296,16 +296,34 @@ function LabelVault() {
           {fields && (
             <div className="space-y-4">
               {duplicate ? (
-                <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 flex gap-3 items-start">
-                  <AlertTriangle className="size-4 text-warning mt-0.5 shrink-0" />
-                  <div className="text-sm">
-                    <p className="font-medium text-warning">Matches a record in the database</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Matched on Brand + Class/Type · added{" "}
-                      {new Date(duplicate.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
+                (() => {
+                  const mismatches = diffFields(fields, duplicate);
+                  const allMatch = mismatches.length === 0;
+                  return allMatch ? (
+                    <div className="rounded-lg border border-success/40 bg-success/10 p-3 flex gap-3 items-start">
+                      <CheckCircle2 className="size-4 text-success mt-0.5 shrink-0" />
+                      <div className="text-sm">
+                        <p className="font-medium text-success">Matches a record — meets acceptance criteria</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          All 5 fields match the record added{" "}
+                          {new Date(duplicate.created_at).toLocaleDateString()}.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 flex gap-3 items-start">
+                      <AlertTriangle className="size-4 text-warning mt-0.5 shrink-0" />
+                      <div className="text-sm">
+                        <p className="font-medium text-warning">Matches a record — does not meet acceptance criteria</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Brand + Class/Type match a record from{" "}
+                          {new Date(duplicate.created_at).toLocaleDateString()}, but these fields differ:{" "}
+                          <span className="text-warning font-medium">{mismatches.join(", ")}</span>.
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()
               ) : (
                 <div className="rounded-lg border border-success/40 bg-success/10 p-3 flex gap-3 items-start">
                   <CheckCircle2 className="size-4 text-success mt-0.5 shrink-0" />
