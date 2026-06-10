@@ -423,6 +423,21 @@ function LabelVault() {
   );
 }
 
+const norm = (v: string | null | undefined) => (v ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+
+function diffFields(scanned: ScannedFields, record: LabelRow): string[] {
+  const checks: Array<[string, string, string | null]> = [
+    ["Brand Name", scanned.brand_name, record.brand_name],
+    ["Class / Type", scanned.class_type, record.class_type],
+    ["Alcohol Content", scanned.alcohol_content, record.alcohol_content],
+    ["Net Contents", scanned.net_contents, record.net_contents],
+    ["Government Warning", scanned.government_warning, record.government_warning],
+  ];
+  return checks.filter(([, a, b]) => norm(a) !== norm(b)).map(([label]) => label);
+}
+
+
+
 function Field({
   label,
   value,
