@@ -86,4 +86,4 @@ https://github.com/ShaunPD/label-vault-finder
 
 ## License
 
-Refer to the repository for licensing information.
+Built as a take-home assessment. Not licensed for production use.
