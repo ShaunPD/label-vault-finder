@@ -481,15 +481,22 @@ function Field({
   label,
   value,
   onChange,
+  readOnly = false,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
+  readOnly?: boolean;
 }) {
   return (
     <div>
       <Label className="text-xs uppercase tracking-wide text-muted-foreground">{label}</Label>
-      <Input className="mt-1.5" value={value} onChange={(e) => onChange(e.target.value)} />
+      <Input
+        className="mt-1.5"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        readOnly={readOnly}
+      />
     </div>
   );
 }
