@@ -448,6 +448,16 @@ function LabelVault() {
           )}
         </div>
       </section>
+
+      <RecordDialog
+        record={active}
+        onClose={() => setActive(null)}
+        onSaved={async (updated) => {
+          setActive(null);
+          await loadLabels();
+          toast.success(`Updated "${updated.brand_name}"`);
+        }}
+      />
     </div>
   );
 }
