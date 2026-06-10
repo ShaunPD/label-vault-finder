@@ -1,0 +1,1 @@
+CREATE POLICY "Public update labels" ON public.labels FOR UPDATE TO anon, authenticated USING (true) WITH CHECK (true);
