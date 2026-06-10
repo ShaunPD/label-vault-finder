@@ -121,8 +121,14 @@ function LabelVault() {
         .eq("class_type_norm", result.class_type.trim().toLowerCase())
         .maybeSingle();
       if (dup) {
-        setDuplicate(dup as LabelRow);
-        toast.warning("This label matches a record in the database");
+        const dupRow = dup as LabelRow;
+        setDuplicate(dupRow);
+        const mismatches = diffFields(result, dupRow);
+        if (mismatches.length === 0) {
+          toast.success("Label matches a record in the database and meets acceptance criteria");
+        } else {
+          toast.warning(`Label matches a record, but ${mismatches.length} field(s) differ: ${mismatches.join(", ")}`);
+        }
       } else {
         toast.success("Label scanned — review and save");
       }
@@ -290,16 +296,34 @@ function LabelVault() {
           {fields && (
             <div className="space-y-4">
               {duplicate ? (
-                <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 flex gap-3 items-start">
-                  <AlertTriangle className="size-4 text-warning mt-0.5 shrink-0" />
-                  <div className="text-sm">
-                    <p className="font-medium text-warning">Matches a record in the database</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Matched on Brand + Class/Type · added{" "}
-                      {new Date(duplicate.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
+                (() => {
+                  const mismatches = diffFields(fields, duplicate);
+                  const allMatch = mismatches.length === 0;
+                  return allMatch ? (
+                    <div className="rounded-lg border border-success/40 bg-success/10 p-3 flex gap-3 items-start">
+                      <CheckCircle2 className="size-4 text-success mt-0.5 shrink-0" />
+                      <div className="text-sm">
+                        <p className="font-medium text-success">Matches a record — meets acceptance criteria</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          All 5 fields match the record added{" "}
+                          {new Date(duplicate.created_at).toLocaleDateString()}.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 flex gap-3 items-start">
+                      <AlertTriangle className="size-4 text-warning mt-0.5 shrink-0" />
+                      <div className="text-sm">
+                        <p className="font-medium text-warning">Matches a record — does not meet acceptance criteria</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Brand + Class/Type match a record from{" "}
+                          {new Date(duplicate.created_at).toLocaleDateString()}, but these fields differ:{" "}
+                          <span className="text-warning font-medium">{mismatches.join(", ")}</span>.
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()
               ) : (
                 <div className="rounded-lg border border-success/40 bg-success/10 p-3 flex gap-3 items-start">
                   <CheckCircle2 className="size-4 text-success mt-0.5 shrink-0" />
@@ -398,6 +422,21 @@ function LabelVault() {
     </div>
   );
 }
+
+const norm = (v: string | null | undefined) => (v ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+
+function diffFields(scanned: ScannedFields, record: LabelRow): string[] {
+  const checks: Array<[string, string, string | null]> = [
+    ["Brand Name", scanned.brand_name, record.brand_name],
+    ["Class / Type", scanned.class_type, record.class_type],
+    ["Alcohol Content", scanned.alcohol_content, record.alcohol_content],
+    ["Net Contents", scanned.net_contents, record.net_contents],
+    ["Government Warning", scanned.government_warning, record.government_warning],
+  ];
+  return checks.filter(([, a, b]) => norm(a) !== norm(b)).map(([label]) => label);
+}
+
+
 
 function Field({
   label,
