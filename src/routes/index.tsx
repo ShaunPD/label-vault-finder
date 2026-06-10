@@ -122,7 +122,7 @@ function LabelVault() {
         .maybeSingle();
       if (dup) {
         setDuplicate(dup as LabelRow);
-        toast.warning("This label is already in the database");
+        toast.warning("This label matches a record in the database");
       } else {
         toast.success("Label scanned — review and save");
       }
