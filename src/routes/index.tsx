@@ -121,8 +121,14 @@ function LabelVault() {
         .eq("class_type_norm", result.class_type.trim().toLowerCase())
         .maybeSingle();
       if (dup) {
-        setDuplicate(dup as LabelRow);
-        toast.warning("This label matches a record in the database");
+        const dupRow = dup as LabelRow;
+        setDuplicate(dupRow);
+        const mismatches = diffFields(result, dupRow);
+        if (mismatches.length === 0) {
+          toast.success("Label matches a record in the database and meets acceptance criteria");
+        } else {
+          toast.warning(`Label matches a record, but ${mismatches.length} field(s) differ: ${mismatches.join(", ")}`);
+        }
       } else {
         toast.success("Label scanned — review and save");
       }
