@@ -14,7 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      labels: {
+        Row: {
+          alcohol_content: string | null
+          brand_name: string
+          brand_name_norm: string | null
+          class_type: string
+          class_type_norm: string | null
+          created_at: string
+          government_warning: string | null
+          id: string
+          image_url: string | null
+          net_contents: string | null
+        }
+        Insert: {
+          alcohol_content?: string | null
+          brand_name: string
+          brand_name_norm?: string | null
+          class_type: string
+          class_type_norm?: string | null
+          created_at?: string
+          government_warning?: string | null
+          id?: string
+          image_url?: string | null
+          net_contents?: string | null
+        }
+        Update: {
+          alcohol_content?: string | null
+          brand_name?: string
+          brand_name_norm?: string | null
+          class_type?: string
+          class_type_norm?: string | null
+          created_at?: string
+          government_warning?: string | null
+          id?: string
+          image_url?: string | null
+          net_contents?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
