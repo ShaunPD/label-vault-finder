@@ -424,7 +424,12 @@ function LabelVault() {
           ) : (
             <div className="divide-y divide-border">
               {labels.map((l) => (
-                <div key={l.id} className="px-5 py-3 grid grid-cols-[1fr_auto] gap-4 items-center hover:bg-accent/20">
+                <button
+                  key={l.id}
+                  type="button"
+                  onClick={() => setActive(l)}
+                  className="w-full text-left px-5 py-3 grid grid-cols-[1fr_auto] gap-4 items-center hover:bg-accent/20 transition-colors"
+                >
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{l.brand_name}</p>
                     <p className="text-xs text-muted-foreground truncate">
@@ -436,7 +441,7 @@ function LabelVault() {
                   <span className="text-[11px] font-mono text-muted-foreground whitespace-nowrap">
                     {new Date(l.created_at).toLocaleDateString()}
                   </span>
-                </div>
+                </button>
               ))}
             </div>
           )}
