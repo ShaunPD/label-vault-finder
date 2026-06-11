@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { FlaskConical, Upload, Loader2, CheckCircle2, AlertTriangle, Database, ImageIcon, Sparkles, Trash2, Pencil, X, Save, FileSpreadsheet, Download, Images, Check } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
+import { FlaskConical, Upload, Loader2, CheckCircle2, AlertTriangle, Database, ImageIcon, Sparkles, Trash2, Pencil, X, Save, FileSpreadsheet, Download, Images, Check, Search, ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -52,13 +52,14 @@ function LabelVault() {
   const [dragging, setDragging] = useState(false);
   const [active, setActive] = useState<LabelRow | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   const loadLabels = useCallback(async () => {
     const { data, error } = await supabase
       .from("labels")
       .select("*")
-      .order("created_at", { ascending: false })
-      .limit(50);
+      .order("created_at", { ascending: false });
     if (!error && data) setLabels(data as LabelRow[]);
   }, []);
 
@@ -200,6 +201,25 @@ function LabelVault() {
 
   const updateField = (k: keyof ScannedFields, v: string) =>
     setFields((f) => (f ? { ...f, [k]: v } : f));
+
+  const filteredLabels = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return labels
+      .filter((l) =>
+        q
+          ? l.brand_name.toLowerCase().includes(q) ||
+            l.class_type.toLowerCase().includes(q) ||
+            (l.alcohol_content?.toLowerCase().includes(q) ?? false) ||
+            (l.net_contents?.toLowerCase().includes(q) ?? false)
+          : true
+      )
+      .sort((a, b) => {
+        const cmp = a.brand_name.localeCompare(b.brand_name, undefined, {
+          sensitivity: "base",
+        });
+        return sortDir === "asc" ? cmp : -cmp;
+      });
+  }, [labels, searchQuery, sortDir]);
 
   return (
     <div className="min-h-screen grid-bg">
@@ -430,19 +450,39 @@ function LabelVault() {
       {/* Registry */}
       <section className="mx-auto max-w-6xl px-6 pb-16">
         <div className="rounded-xl border border-border bg-card overflow-hidden">
-          <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-            <h2 className="text-sm font-semibold tracking-tight uppercase text-muted-foreground">
+          <div className="px-5 py-4 border-b border-border flex items-center justify-between gap-4">
+            <h2 className="text-sm font-semibold tracking-tight uppercase text-muted-foreground shrink-0">
               Registry
             </h2>
-            <span className="text-xs font-mono text-muted-foreground">{labels.length} entries</span>
+            <div className="flex items-center gap-2 flex-1 justify-end">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Search labels…"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-8 h-8 w-48 text-xs"
+                />
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+                className="text-xs gap-1 h-8"
+              >
+                <ArrowUpDown className="size-3.5" />
+                Brand {sortDir === "asc" ? "A–Z" : "Z–A"}
+              </Button>
+            </div>
           </div>
-          {labels.length === 0 ? (
+          {filteredLabels.length === 0 ? (
             <div className="p-10 text-center text-sm text-muted-foreground">
-              No labels yet. Upload one above to get started.
+              {searchQuery ? "No labels match your search." : "No labels yet. Upload one above to get started."}
             </div>
           ) : (
             <div className="divide-y divide-border">
-              {labels.map((l) => (
+              {filteredLabels.map((l) => (
                 <div
                   key={l.id}
                   className="group w-full text-left px-5 py-3 grid grid-cols-[1fr_auto_auto] gap-4 items-center hover:bg-accent/20 transition-colors"
