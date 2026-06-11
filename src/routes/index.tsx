@@ -200,9 +200,12 @@ function LabelVault() {
               <p className="text-xs text-muted-foreground">Beverage label intake & registry</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Database className="size-3.5" />
-            <span className="font-mono">{labels.length} labels on file</span>
+          <div className="flex items-center gap-3">
+            <BulkImport onDone={loadLabels} />
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Database className="size-3.5" />
+              <span className="font-mono">{labels.length} labels on file</span>
+            </div>
           </div>
         </div>
       </header>
