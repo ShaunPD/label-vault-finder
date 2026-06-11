@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FlaskConical, Upload, Loader2, CheckCircle2, AlertTriangle, Database, ImageIcon, Sparkles, Trash2, Pencil, X, Save, FileSpreadsheet, Download } from "lucide-react";
+import { FlaskConical, Upload, Loader2, CheckCircle2, AlertTriangle, Database, ImageIcon, Sparkles, Trash2, Pencil, X, Save, FileSpreadsheet, Download, Images, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -215,6 +215,7 @@ function LabelVault() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <BulkScanImages onDone={loadLabels} />
             <BulkImport onDone={loadLabels} />
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Database className="size-3.5" />
@@ -1021,3 +1022,331 @@ function AttachImage({
   );
 }
 
+
+type ScanItem = {
+  id: string;
+  file: File;
+  previewUrl: string;
+  status: "queued" | "scanning" | "ready" | "saving" | "error";
+  fields: ScannedFields | null;
+  duplicate: LabelRow | null;
+  error?: string;
+};
+
+function BulkScanImages({ onDone }: { onDone: () => void | Promise<void> }) {
+  const scan = useServerFn(scanLabel);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState<ScanItem[]>([]);
+  const processingRef = useRef(false);
+
+  const fileToDataUrl = (f: File) =>
+    new Promise<string>((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result as string);
+      r.onerror = () => reject(r.error);
+      r.readAsDataURL(f);
+    });
+
+  const updateItem = (id: string, patch: Partial<ScanItem>) =>
+    setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)));
+
+  const removeItem = (id: string) =>
+    setItems((prev) => {
+      const it = prev.find((x) => x.id === id);
+      if (it) URL.revokeObjectURL(it.previewUrl);
+      return prev.filter((x) => x.id !== id);
+    });
+
+  useEffect(() => {
+    if (processingRef.current) return;
+    const next = items.find((it) => it.status === "queued");
+    if (!next) return;
+    processingRef.current = true;
+    (async () => {
+      updateItem(next.id, { status: "scanning" });
+      try {
+        const dataUrl = await fileToDataUrl(next.file);
+        const result = await scan({ data: { imageDataUrl: dataUrl } });
+        let duplicate: LabelRow | null = null;
+        if (result.brand_name && result.class_type) {
+          const { data: dup } = await supabase
+            .from("labels")
+            .select("*")
+            .eq("brand_name_norm", result.brand_name.trim().toLowerCase())
+            .eq("class_type_norm", result.class_type.trim().toLowerCase())
+            .maybeSingle();
+          if (dup) duplicate = dup as LabelRow;
+        }
+        updateItem(next.id, { status: "ready", fields: result, duplicate });
+      } catch (e) {
+        updateItem(next.id, {
+          status: "error",
+          error: e instanceof Error ? e.message : "Scan failed",
+        });
+      } finally {
+        processingRef.current = false;
+        setItems((p) => [...p]);
+      }
+    })();
+  }, [items, scan]);
+
+  const onPick = (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return;
+    const next: ScanItem[] = [];
+    for (const f of Array.from(fileList)) {
+      if (!/^image\/(png|jpe?g)$/i.test(f.type)) {
+        toast.error(`${f.name}: only .jpg or .png`);
+        continue;
+      }
+      if (f.size > 10 * 1024 * 1024) {
+        toast.error(`${f.name}: must be under 10 MB`);
+        continue;
+      }
+      next.push({
+        id: crypto.randomUUID(),
+        file: f,
+        previewUrl: URL.createObjectURL(f),
+        status: "queued",
+        fields: null,
+        duplicate: null,
+      });
+    }
+    if (next.length === 0) return;
+    setItems((prev) => [...prev, ...next]);
+    setOpen(true);
+    if (inputRef.current) inputRef.current.value = "";
+  };
+
+  const updateField = (id: string, k: keyof ScannedFields, v: string) =>
+    setItems((prev) =>
+      prev.map((it) =>
+        it.id === id && it.fields ? { ...it, fields: { ...it.fields, [k]: v } } : it,
+      ),
+    );
+
+  const approve = async (id: string) => {
+    const it = items.find((x) => x.id === id);
+    if (!it || !it.fields) return;
+    if (!it.fields.brand_name.trim() || !it.fields.class_type.trim()) {
+      toast.error("Brand Name and Class / Type are required");
+      return;
+    }
+    if (it.duplicate) {
+      const mismatches = diffFields(it.fields, it.duplicate);
+      if (mismatches.length > 0) {
+        toast.error(`Cannot approve — does not match existing record (${mismatches.join(", ")})`);
+        return;
+      }
+      toast.info(`"${it.fields.brand_name}" already on file — skipped`);
+      removeItem(id);
+      return;
+    }
+    updateItem(id, { status: "saving" });
+    try {
+      const ext = it.file.type === "image/png" ? "png" : "jpg";
+      const path = `${crypto.randomUUID()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("labels")
+        .upload(path, it.file, { contentType: it.file.type, upsert: false });
+      if (upErr) throw upErr;
+      const { data: signed } = await supabase.storage
+        .from("labels")
+        .createSignedUrl(path, 60 * 60 * 24 * 365 * 10);
+      const { error: insErr } = await supabase.from("labels").insert({
+        brand_name: it.fields.brand_name,
+        class_type: it.fields.class_type,
+        alcohol_content: it.fields.alcohol_content || null,
+        net_contents: it.fields.net_contents || null,
+        government_warning: it.fields.government_warning || null,
+        image_url: signed?.signedUrl ?? null,
+      });
+      if (insErr) throw insErr;
+      toast.success(`Approved "${it.fields.brand_name}"`);
+      removeItem(id);
+      await onDone();
+    } catch (e) {
+      updateItem(id, {
+        status: "error",
+        error: e instanceof Error ? e.message : "Save failed",
+      });
+    }
+  };
+
+  const closeAll = () => {
+    setOpen(false);
+    setItems((prev) => {
+      prev.forEach((it) => URL.revokeObjectURL(it.previewUrl));
+      return [];
+    });
+  };
+
+  const pending = items.length;
+  const readyCount = items.filter((i) => i.status === "ready").length;
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/jpeg"
+        multiple
+        className="hidden"
+        onChange={(e) => onPick(e.target.files)}
+      />
+      <Button variant="outline" size="sm" onClick={() => inputRef.current?.click()}>
+        <Images className="size-3.5" /> Bulk images
+      </Button>
+
+      <Dialog open={open} onOpenChange={(o) => (o ? setOpen(true) : closeAll())}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Review scanned images</DialogTitle>
+            <DialogDescription>
+              {pending === 0
+                ? "No images pending."
+                : `${pending} pending · ${readyCount} ready. Nothing is saved until you approve.`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {items.map((it) => (
+              <BulkScanRow
+                key={it.id}
+                item={it}
+                onFieldChange={(k, v) => updateField(it.id, k, v)}
+                onApprove={() => approve(it.id)}
+                onReject={() => removeItem(it.id)}
+              />
+            ))}
+            {items.length === 0 && (
+              <div className="text-center text-sm text-muted-foreground py-8">
+                Select images to begin.
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => inputRef.current?.click()}>
+              <Upload className="size-4" /> Add more
+            </Button>
+            <Button variant="outline" onClick={closeAll}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function BulkScanRow({
+  item,
+  onFieldChange,
+  onApprove,
+  onReject,
+}: {
+  item: ScanItem;
+  onFieldChange: (k: keyof ScannedFields, v: string) => void;
+  onApprove: () => void;
+  onReject: () => void;
+}) {
+  const mismatches =
+    item.fields && item.duplicate ? diffFields(item.fields, item.duplicate) : [];
+  const dupBlocked = !!item.duplicate && mismatches.length > 0;
+  const dupMatched = !!item.duplicate && mismatches.length === 0;
+
+  return (
+    <div className="rounded-lg border border-border bg-card/50 p-4">
+      <div className="grid gap-4 md:grid-cols-[160px_1fr]">
+        <div className="rounded-md overflow-hidden border border-border bg-black/30 aspect-square">
+          <img src={item.previewUrl} alt={item.file.name} className="w-full h-full object-contain" />
+        </div>
+        <div className="min-w-0 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-mono text-muted-foreground truncate">{item.file.name}</p>
+            <StatusBadge status={item.status} />
+          </div>
+
+          {item.status === "scanning" || item.status === "queued" ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+              <Loader2 className="size-4 animate-spin" /> Scanning…
+            </div>
+          ) : item.status === "error" ? (
+            <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+              {item.error ?? "Failed"}
+            </div>
+          ) : item.fields ? (
+            <>
+              {dupMatched && (
+                <div className="rounded-md border border-success/40 bg-success/10 p-2 text-xs text-success">
+                  Already on file — matches all fields. Approving will skip insert.
+                </div>
+              )}
+              {dupBlocked && (
+                <div className="rounded-md border border-warning/40 bg-warning/10 p-2 text-xs text-warning">
+                  Matches existing record but {mismatches.length} field(s) differ:{" "}
+                  <span className="font-medium">{mismatches.join(", ")}</span>. Reject this import.
+                </div>
+              )}
+              <Field label="Brand Name" value={item.fields.brand_name} onChange={(v) => onFieldChange("brand_name", v)} />
+              <Field label="Class / Type" value={item.fields.class_type} onChange={(v) => onFieldChange("class_type", v)} />
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="Alcohol Content" value={item.fields.alcohol_content} onChange={(v) => onFieldChange("alcohol_content", v)} />
+                <Field label="Net Contents" value={item.fields.net_contents} onChange={(v) => onFieldChange("net_contents", v)} />
+              </div>
+              <div>
+                <Label className="text-xs uppercase tracking-wide text-muted-foreground">Government Warning</Label>
+                <Textarea
+                  rows={3}
+                  className="mt-1.5 font-mono text-xs"
+                  value={item.fields.government_warning}
+                  onChange={(e) => onFieldChange("government_warning", e.target.value)}
+                />
+              </div>
+            </>
+          ) : null}
+
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <Button variant="outline" size="sm" onClick={onReject} disabled={item.status === "saving"}>
+              <X className="size-3.5" /> Reject
+            </Button>
+            <Button
+              size="sm"
+              onClick={onApprove}
+              disabled={
+                item.status === "saving" ||
+                item.status === "scanning" ||
+                item.status === "queued" ||
+                item.status === "error" ||
+                dupBlocked
+              }
+            >
+              {item.status === "saving" ? (
+                <><Loader2 className="size-3.5 animate-spin" /> Saving…</>
+              ) : (
+                <><Check className="size-3.5" /> Approve</>
+              )}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: ScanItem["status"] }) {
+  const map: Record<ScanItem["status"], { label: string; cls: string }> = {
+    queued: { label: "Queued", cls: "bg-muted text-muted-foreground" },
+    scanning: { label: "Scanning", cls: "bg-primary/15 text-primary" },
+    ready: { label: "Ready", cls: "bg-success/15 text-success" },
+    saving: { label: "Saving", cls: "bg-primary/15 text-primary" },
+    error: { label: "Error", cls: "bg-destructive/15 text-destructive" },
+  };
+  const v = map[status];
+  return (
+    <span className={`text-[10px] font-mono uppercase px-1.5 py-0.5 rounded border border-border ${v.cls}`}>
+      {v.label}
+    </span>
+  );
+}
