@@ -572,7 +572,7 @@ function RecordDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {record.image_url && (
+        {record.image_url ? (
           <div className="rounded-lg overflow-hidden border border-border bg-black/30">
             <img
               src={record.image_url}
@@ -580,6 +580,8 @@ function RecordDialog({
               className="w-full max-h-[320px] object-contain"
             />
           </div>
+        ) : (
+          <AttachImage record={record} onAttached={onSaved} />
         )}
 
         <div className="space-y-4">
