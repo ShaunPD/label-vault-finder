@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FlaskConical, Upload, Loader2, CheckCircle2, AlertTriangle, Database, ImageIcon, Sparkles, Trash2, Pencil, X, Save } from "lucide-react";
+import { FlaskConical, Upload, Loader2, CheckCircle2, AlertTriangle, Database, ImageIcon, Sparkles, Trash2, Pencil, X, Save, FileSpreadsheet, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -200,9 +200,12 @@ function LabelVault() {
               <p className="text-xs text-muted-foreground">Beverage label intake & registry</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Database className="size-3.5" />
-            <span className="font-mono">{labels.length} labels on file</span>
+          <div className="flex items-center gap-3">
+            <BulkImport onDone={loadLabels} />
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Database className="size-3.5" />
+              <span className="font-mono">{labels.length} labels on file</span>
+            </div>
           </div>
         </div>
       </header>
@@ -432,7 +435,14 @@ function LabelVault() {
                   className="w-full text-left px-5 py-3 grid grid-cols-[1fr_auto] gap-4 items-center hover:bg-accent/20 transition-colors"
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{l.brand_name}</p>
+                    <p className="text-sm font-medium truncate flex items-center gap-2">
+                      {l.brand_name}
+                      {!l.image_url && (
+                        <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-warning/15 text-warning border border-warning/30">
+                          No image
+                        </span>
+                      )}
+                    </p>
                     <p className="text-xs text-muted-foreground truncate">
                       {l.class_type}
                       {l.alcohol_content ? ` · ${l.alcohol_content}` : ""}
@@ -562,7 +572,7 @@ function RecordDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {record.image_url && (
+        {record.image_url ? (
           <div className="rounded-lg overflow-hidden border border-border bg-black/30">
             <img
               src={record.image_url}
@@ -570,6 +580,8 @@ function RecordDialog({
               className="w-full max-h-[320px] object-contain"
             />
           </div>
+        ) : (
+          <AttachImage record={record} onAttached={onSaved} />
         )}
 
         <div className="space-y-4">
@@ -646,3 +658,306 @@ function RecordDialog({
     </Dialog>
   );
 }
+
+
+
+// --- CSV parsing (handles quoted fields, escaped quotes, newlines in quotes) ---
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cur = "";
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        cur += c;
+      }
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ",") {
+        row.push(cur);
+        cur = "";
+      } else if (c === "\n" || c === "\r") {
+        if (c === "\r" && text[i + 1] === "\n") i++;
+        row.push(cur);
+        rows.push(row);
+        row = [];
+        cur = "";
+      } else cur += c;
+    }
+  }
+  if (cur.length > 0 || row.length > 0) {
+    row.push(cur);
+    rows.push(row);
+  }
+  return rows.filter((r) => r.some((v) => v.trim() !== ""));
+}
+
+const TEMPLATE_HEADERS = [
+  "brand_name",
+  "class_type",
+  "alcohol_content",
+  "net_contents",
+  "government_warning",
+] as const;
+
+const TEMPLATE_CSV =
+  TEMPLATE_HEADERS.join(",") +
+  "\n" +
+  '"Example Bourbon","Bourbon Whiskey","40% ALC/VOL (80 Proof)","750 ML","GOVERNMENT WARNING: According to the Surgeon General..."\n';
+
+function BulkImport({ onDone }: { onDone: () => void | Promise<void> }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+
+  const downloadTemplate = () => {
+    const blob = new Blob([TEMPLATE_CSV], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "labelvault-template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleFile = async (f: File | null) => {
+    if (!f) return;
+    setBusy(true);
+    try {
+      const text = await f.text();
+      const rows = parseCsv(text);
+      if (rows.length < 2) throw new Error("CSV is empty");
+      const headers = rows[0].map((h) => h.trim().toLowerCase());
+      const idx = Object.fromEntries(
+        TEMPLATE_HEADERS.map((h) => [h, headers.indexOf(h)]),
+      ) as Record<(typeof TEMPLATE_HEADERS)[number], number>;
+      if (idx.brand_name < 0 || idx.class_type < 0) {
+        throw new Error("CSV must include brand_name and class_type columns");
+      }
+
+      let inserted = 0;
+      let skipped = 0;
+      const errors: string[] = [];
+      for (let i = 1; i < rows.length; i++) {
+        const r = rows[i];
+        const get = (k: (typeof TEMPLATE_HEADERS)[number]) =>
+          idx[k] >= 0 ? (r[idx[k]] ?? "").trim() : "";
+        const brand = get("brand_name");
+        const cls = get("class_type");
+        if (!brand || !cls) {
+          errors.push(`Row ${i + 1}: missing brand_name or class_type`);
+          continue;
+        }
+        // duplicate check
+        const { data: dup } = await supabase
+          .from("labels")
+          .select("id")
+          .eq("brand_name_norm", brand.toLowerCase())
+          .eq("class_type_norm", cls.toLowerCase())
+          .maybeSingle();
+        if (dup) {
+          skipped++;
+          continue;
+        }
+        const { error } = await supabase.from("labels").insert({
+          brand_name: brand,
+          class_type: cls,
+          alcohol_content: get("alcohol_content") || null,
+          net_contents: get("net_contents") || null,
+          government_warning: get("government_warning") || null,
+          image_url: null,
+        });
+        if (error) errors.push(`Row ${i + 1}: ${error.message}`);
+        else inserted++;
+      }
+
+      if (inserted > 0) toast.success(`Imported ${inserted} label${inserted === 1 ? "" : "s"}`);
+      if (skipped > 0) toast.info(`Skipped ${skipped} duplicate${skipped === 1 ? "" : "s"}`);
+      if (errors.length > 0) toast.warning(`${errors.length} row(s) failed — ${errors[0]}`);
+      await onDone();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Import failed");
+    } finally {
+      setBusy(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".csv,text/csv"
+        className="hidden"
+        onChange={(e) => handleFile(e.target.files?.[0] ?? null)}
+      />
+      <Button variant="outline" size="sm" onClick={downloadTemplate}>
+        <Download className="size-3.5" /> Template
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => inputRef.current?.click()}
+        disabled={busy}
+      >
+        {busy ? <Loader2 className="size-3.5 animate-spin" /> : <FileSpreadsheet className="size-3.5" />}
+        Bulk import
+      </Button>
+    </div>
+  );
+}
+
+function AttachImage({
+  record,
+  onAttached,
+}: {
+  record: LabelRow;
+  onAttached: (updated: LabelRow) => void | Promise<void>;
+}) {
+  const scan = useServerFn(scanLabel);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [mismatches, setMismatches] = useState<string[] | null>(null);
+
+  useEffect(() => {
+    if (!file) return setPreviewUrl(null);
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  const pick = (f: File | null) => {
+    if (!f) return;
+    if (!/^image\/(png|jpe?g)$/i.test(f.type)) {
+      toast.error("Please upload a .jpg or .png image");
+      return;
+    }
+    if (f.size > 10 * 1024 * 1024) {
+      toast.error("Image must be under 10 MB");
+      return;
+    }
+    setFile(f);
+    setMismatches(null);
+  };
+
+  const fileToDataUrl = (f: File) =>
+    new Promise<string>((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result as string);
+      r.onerror = () => reject(r.error);
+      r.readAsDataURL(f);
+    });
+
+  const handleVerifyAndAttach = async () => {
+    if (!file) return;
+    setBusy(true);
+    setMismatches(null);
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      const scanned = await scan({ data: { imageDataUrl: dataUrl } });
+      const diff = diffFields(scanned, record);
+      if (diff.length > 0) {
+        setMismatches(diff);
+        toast.warning(`Image does not match record — ${diff.length} field(s) differ`);
+        return;
+      }
+      // matches → upload and link
+      const ext = file.type === "image/png" ? "png" : "jpg";
+      const path = `${record.id}-${crypto.randomUUID()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("labels").upload(path, file, {
+        contentType: file.type,
+        upsert: false,
+      });
+      if (upErr) throw upErr;
+      const { data: signed } = await supabase.storage
+        .from("labels")
+        .createSignedUrl(path, 60 * 60 * 24 * 365 * 10);
+
+      const { data: updated, error: updErr } = await supabase
+        .from("labels")
+        .update({ image_url: signed?.signedUrl ?? null })
+        .eq("id", record.id)
+        .select()
+        .single();
+      if (updErr) throw updErr;
+      toast.success("Image matches — record is now complete");
+      await onAttached(updated as LabelRow);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Verification failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-warning/40 bg-warning/5 p-4 space-y-3">
+      <div className="flex items-start gap-2.5">
+        <AlertTriangle className="size-4 text-warning mt-0.5 shrink-0" />
+        <div className="text-sm">
+          <p className="font-medium text-warning">No image attached</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Upload a label image to verify against this record. All 5 fields must match
+            exactly to attach.
+          </p>
+        </div>
+      </div>
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/jpeg"
+        className="hidden"
+        onChange={(e) => pick(e.target.files?.[0] ?? null)}
+      />
+
+      {previewUrl && (
+        <div className="rounded-md overflow-hidden border border-border bg-black/30">
+          <img src={previewUrl} alt="Label preview" className="w-full max-h-[260px] object-contain" />
+        </div>
+      )}
+
+      {mismatches && mismatches.length > 0 && (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs">
+          <p className="font-medium text-destructive mb-1">Image rejected — fields do not match</p>
+          <p className="text-muted-foreground">
+            Differing: <span className="text-destructive font-medium">{mismatches.join(", ")}</span>
+          </p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => inputRef.current?.click()}
+          disabled={busy}
+        >
+          <Upload className="size-3.5" /> {file ? "Choose different" : "Choose image"}
+        </Button>
+        <Button size="sm" onClick={handleVerifyAndAttach} disabled={!file || busy}>
+          {busy ? (
+            <>
+              <Loader2 className="size-3.5 animate-spin" /> Verifying…
+            </>
+          ) : (
+            <>
+              <Sparkles className="size-3.5" /> Verify & attach
+            </>
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
