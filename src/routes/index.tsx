@@ -442,13 +442,15 @@ function LabelVault() {
           ) : (
             <div className="divide-y divide-border">
               {labels.map((l) => (
-                <button
+                <div
                   key={l.id}
-                  type="button"
-                  onClick={() => setActive(l)}
-                  className="w-full text-left px-5 py-3 grid grid-cols-[1fr_auto] gap-4 items-center hover:bg-accent/20 transition-colors"
+                  className="group w-full text-left px-5 py-3 grid grid-cols-[1fr_auto_auto] gap-4 items-center hover:bg-accent/20 transition-colors"
                 >
-                  <div className="min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => setActive(l)}
+                    className="min-w-0 text-left"
+                  >
                     <p className="text-sm font-medium truncate flex items-center gap-2">
                       {l.brand_name}
                       {!l.image_url && (
@@ -462,11 +464,23 @@ function LabelVault() {
                       {l.alcohol_content ? ` · ${l.alcohol_content}` : ""}
                       {l.net_contents ? ` · ${l.net_contents}` : ""}
                     </p>
-                  </div>
+                  </button>
                   <span className="text-[11px] font-mono text-muted-foreground whitespace-nowrap">
                     {new Date(l.created_at).toLocaleDateString()}
                   </span>
-                </button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeletingId(l.id);
+                    }}
+                    aria-label="Delete label"
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
               ))}
             </div>
           )}
