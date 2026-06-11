@@ -732,16 +732,28 @@ function BulkImport({ onDone }: { onDone: () => void | Promise<void> }) {
     if (!f) return;
     setBusy(true);
     try {
-      const text = await f.text();
-      const rows = parseCsv(text);
-      if (rows.length < 2) throw new Error("CSV is empty");
+      const name = f.name.toLowerCase();
+      const isXlsx = name.endsWith(".xlsx") || name.endsWith(".xls");
+      let rows: string[][];
+      if (isXlsx) {
+        const XLSX = await import("xlsx");
+        const buf = await f.arrayBuffer();
+        const wb = XLSX.read(buf, { type: "array" });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const arr = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, blankrows: false, defval: "" });
+        rows = arr.map((r) => (r as unknown[]).map((c) => (c == null ? "" : String(c))));
+      } else {
+        rows = parseCsv(await f.text());
+      }
+      if (rows.length < 2) throw new Error("File is empty");
       const headers = rows[0].map((h) => h.trim().toLowerCase());
       const idx = Object.fromEntries(
         TEMPLATE_HEADERS.map((h) => [h, headers.indexOf(h)]),
       ) as Record<(typeof TEMPLATE_HEADERS)[number], number>;
       if (idx.brand_name < 0 || idx.class_type < 0) {
-        throw new Error("CSV must include brand_name and class_type columns");
+        throw new Error("File must include brand_name and class_type columns");
       }
+
 
       let inserted = 0;
       let skipped = 0;
