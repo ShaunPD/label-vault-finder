@@ -457,11 +457,28 @@ function LabelVault() {
               </Button>
             </div>
           </div>
-          {labels.length === 0 ? (
-            <div className="p-10 text-center text-sm text-muted-foreground">
-              No labels yet. Upload one above to get started.
-            </div>
-          ) : (
+          {(() => {
+            const q = searchQuery.trim().toLowerCase();
+            const filtered = labels
+              .filter((l) =>
+                q
+                  ? l.brand_name.toLowerCase().includes(q) ||
+                    l.class_type.toLowerCase().includes(q) ||
+                    (l.alcohol_content?.toLowerCase().includes(q) ?? false) ||
+                    (l.net_contents?.toLowerCase().includes(q) ?? false)
+                  : true
+              )
+              .sort((a, b) => {
+                const cmp = a.brand_name.localeCompare(b.brand_name, undefined, {
+                  sensitivity: "base",
+                });
+                return sortDir === "asc" ? cmp : -cmp;
+              });
+            return filtered.length === 0 ? (
+              <div className="p-10 text-center text-sm text-muted-foreground">
+                {searchQuery ? "No labels match your search." : "No labels yet. Upload one above to get started."}
+              </div>
+            ) : (
             <div className="divide-y divide-border">
               {labels.map((l) => (
                 <div
