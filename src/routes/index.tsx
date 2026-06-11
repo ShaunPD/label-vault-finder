@@ -202,6 +202,25 @@ function LabelVault() {
   const updateField = (k: keyof ScannedFields, v: string) =>
     setFields((f) => (f ? { ...f, [k]: v } : f));
 
+  const filteredLabels = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return labels
+      .filter((l) =>
+        q
+          ? l.brand_name.toLowerCase().includes(q) ||
+            l.class_type.toLowerCase().includes(q) ||
+            (l.alcohol_content?.toLowerCase().includes(q) ?? false) ||
+            (l.net_contents?.toLowerCase().includes(q) ?? false)
+          : true
+      )
+      .sort((a, b) => {
+        const cmp = a.brand_name.localeCompare(b.brand_name, undefined, {
+          sensitivity: "base",
+        });
+        return sortDir === "asc" ? cmp : -cmp;
+      });
+  }, [labels, searchQuery, sortDir]);
+
   return (
     <div className="min-h-screen grid-bg">
       <header className="border-b border-border bg-background/70 backdrop-blur sticky top-0 z-10">
