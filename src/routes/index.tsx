@@ -435,7 +435,14 @@ function LabelVault() {
                   className="w-full text-left px-5 py-3 grid grid-cols-[1fr_auto] gap-4 items-center hover:bg-accent/20 transition-colors"
                 >
                   <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{l.brand_name}</p>
+                    <p className="text-sm font-medium truncate flex items-center gap-2">
+                      {l.brand_name}
+                      {!l.image_url && (
+                        <span className="text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-warning/15 text-warning border border-warning/30">
+                          No image
+                        </span>
+                      )}
+                    </p>
                     <p className="text-xs text-muted-foreground truncate">
                       {l.class_type}
                       {l.alcohol_content ? ` · ${l.alcohol_content}` : ""}
