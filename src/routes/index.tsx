@@ -51,6 +51,7 @@ function LabelVault() {
   const [labels, setLabels] = useState<LabelRow[]>([]);
   const [dragging, setDragging] = useState(false);
   const [active, setActive] = useState<LabelRow | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const loadLabels = useCallback(async () => {
     const { data, error } = await supabase
