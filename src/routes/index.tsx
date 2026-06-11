@@ -215,6 +215,7 @@ function LabelVault() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <BulkScanImages onDone={loadLabels} />
             <BulkImport onDone={loadLabels} />
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Database className="size-3.5" />
