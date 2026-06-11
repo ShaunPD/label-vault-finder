@@ -2,7 +2,7 @@
 
 ## Overview
 
-LabelVault is a web-based beverage label intake and registry application designed for distilled spirits labels. Users can upload label images and automatically extract key label information while maintaining a searchable registry of approved labels.
+LabelVault is a web-based beverage label intake and registry application designed for distilled spirits labels. Users can upload individual label images or images in bulk and automatically extract key label information while maintaining a searchable registry of approved labels.  Users can also upload spreadsheets with multiple brands and their associated information.  Labels for these brands can be uploaded at a later time.
 
 ## Features
 
