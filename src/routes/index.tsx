@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { scanLabel, type ScannedFields } from "@/lib/labels.functions";
@@ -50,6 +51,7 @@ function LabelVault() {
   const [labels, setLabels] = useState<LabelRow[]>([]);
   const [dragging, setDragging] = useState(false);
   const [active, setActive] = useState<LabelRow | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const loadLabels = useCallback(async () => {
     const { data, error } = await supabase
@@ -76,6 +78,18 @@ function LabelVault() {
     setFields(null);
     setDuplicate(null);
     if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(null);
+    try {
+      const { error } = await supabase.from("labels").delete().eq("id", id);
+      if (error) throw error;
+      toast.success("Label deleted");
+      await loadLabels();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Delete failed");
+    }
   };
 
   const onFile = (f: File | null) => {
@@ -428,13 +442,15 @@ function LabelVault() {
           ) : (
             <div className="divide-y divide-border">
               {labels.map((l) => (
-                <button
+                <div
                   key={l.id}
-                  type="button"
-                  onClick={() => setActive(l)}
-                  className="w-full text-left px-5 py-3 grid grid-cols-[1fr_auto] gap-4 items-center hover:bg-accent/20 transition-colors"
+                  className="group w-full text-left px-5 py-3 grid grid-cols-[1fr_auto_auto] gap-4 items-center hover:bg-accent/20 transition-colors"
                 >
-                  <div className="min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => setActive(l)}
+                    className="min-w-0 text-left"
+                  >
                     <p className="text-sm font-medium truncate flex items-center gap-2">
                       {l.brand_name}
                       {!l.image_url && (
@@ -448,11 +464,23 @@ function LabelVault() {
                       {l.alcohol_content ? ` · ${l.alcohol_content}` : ""}
                       {l.net_contents ? ` · ${l.net_contents}` : ""}
                     </p>
-                  </div>
+                  </button>
                   <span className="text-[11px] font-mono text-muted-foreground whitespace-nowrap">
                     {new Date(l.created_at).toLocaleDateString()}
                   </span>
-                </button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeletingId(l.id);
+                    }}
+                    aria-label="Delete label"
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
               ))}
             </div>
           )}
@@ -468,6 +496,26 @@ function LabelVault() {
           toast.success(`Updated "${updated.brand_name}"`);
         }}
       />
+
+      <AlertDialog open={!!deletingId} onOpenChange={(o) => !o && setDeletingId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete label?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove the label from the registry. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeletingId(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deletingId && handleDelete(deletingId)}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

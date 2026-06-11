@@ -1,0 +1,1 @@
+CREATE POLICY "Public delete labels" ON public.labels FOR DELETE TO anon, authenticated USING (true);
