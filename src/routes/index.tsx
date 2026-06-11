@@ -431,11 +431,31 @@ function LabelVault() {
       {/* Registry */}
       <section className="mx-auto max-w-6xl px-6 pb-16">
         <div className="rounded-xl border border-border bg-card overflow-hidden">
-          <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-            <h2 className="text-sm font-semibold tracking-tight uppercase text-muted-foreground">
+          <div className="px-5 py-4 border-b border-border flex items-center justify-between gap-4">
+            <h2 className="text-sm font-semibold tracking-tight uppercase text-muted-foreground shrink-0">
               Registry
             </h2>
-            <span className="text-xs font-mono text-muted-foreground">{labels.length} entries</span>
+            <div className="flex items-center gap-2 flex-1 justify-end">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Search labels…"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-8 h-8 w-48 text-xs"
+                />
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+                className="text-xs gap-1 h-8"
+              >
+                <ArrowUpDown className="size-3.5" />
+                Brand {sortDir === "asc" ? "A–Z" : "Z–A"}
+              </Button>
+            </div>
           </div>
           {labels.length === 0 ? (
             <div className="p-10 text-center text-sm text-muted-foreground">
