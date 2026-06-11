@@ -52,13 +52,14 @@ function LabelVault() {
   const [dragging, setDragging] = useState(false);
   const [active, setActive] = useState<LabelRow | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   const loadLabels = useCallback(async () => {
     const { data, error } = await supabase
       .from("labels")
       .select("*")
-      .order("created_at", { ascending: false })
-      .limit(50);
+      .order("created_at", { ascending: false });
     if (!error && data) setLabels(data as LabelRow[]);
   }, []);
 
