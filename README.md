@@ -36,6 +36,8 @@ Uploaded labels should:
 - Save new labels as records when no existing match is found
 - Maintain a centralized repository of distilled spirits labels
 - Streamline label intake and record management processes
+- Delete records if they are no longer needed
+- Search and sort by brand name
 
 ## How It Works
 
