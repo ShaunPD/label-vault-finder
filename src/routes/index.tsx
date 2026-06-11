@@ -80,6 +80,18 @@ function LabelVault() {
     if (fileRef.current) fileRef.current.value = "";
   };
 
+  const handleDelete = async (id: string) => {
+    setDeletingId(null);
+    try {
+      const { error } = await supabase.from("labels").delete().eq("id", id);
+      if (error) throw error;
+      toast.success("Label deleted");
+      await loadLabels();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Delete failed");
+    }
+  };
+
   const onFile = (f: File | null) => {
     if (!f) return;
     if (!/^image\/(png|jpe?g)$/i.test(f.type)) {
